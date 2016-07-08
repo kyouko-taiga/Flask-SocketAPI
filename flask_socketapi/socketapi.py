@@ -99,10 +99,10 @@ class SocketAPI(object):
         @socketio.on('subscribe', namespace=self.namespace)
         def handle_subscribe(uri):
             (resource_name, resource_id) = self._parse_uri(uri)
+            resource_class = self.subscribable[resource_name]['class']
 
             if resource_id:
                 # Check that the resource we're trying to subscribe to exists.
-                resource_class = self.subscribable[resource_name]['class']
                 resource = self.store.get(resource_class, resource_id)
                 if resource_id is None:
                     raise NotFoundError(
@@ -112,6 +112,12 @@ class SocketAPI(object):
                 self.socketio.emit('state', {
                     'uri': uri,
                     'resource': resource
+                })
+            else:
+                resources = self.store.list(resource_class)
+                self.socketio.emit('state', {
+                    'uri': uri,
+                    'resources': resources
                 })
 
             join_room(uri)

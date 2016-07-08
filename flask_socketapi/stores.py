@@ -10,6 +10,17 @@ class AbstractStore(metaclass=ABCMeta):
     """
 
     @abstractmethod
+    def list(self, resource_class):
+        """Retrieves a list of resources from the store.
+
+        :param resource_class:
+            The class of the resources to retrieve.
+
+        :return:
+            A list of instances of `resource_class`.
+        """
+
+    @abstractmethod
     def get(self, resource_class, resource_id):
         """Retrieves a resource from the store.
 
@@ -50,6 +61,12 @@ class SimpleStore(AbstractStore):
         self._id_attributes = {
             name.__name__: id_attribute for (name, id_attribute) in id_attributes}
         self._database = {}
+
+    def list(self, resource_class):
+        try:
+            return list(self._database[resource_class.__name__].values())
+        except KeyError:
+            return []
 
     def get(self, resource_class, resource_id):
         try:

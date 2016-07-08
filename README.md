@@ -21,22 +21,11 @@ Example
 
 ```python
 from flask import Flask, render_template, json
+
 from flask_socketio import SocketIO
-from flask_socketapi import SocketAPI, AbstractStore
+from flask_socketapi import SocketAPI
+from flask_socketapi.stores import SimpleStore
 
-class Store(AbstractStore):
-
-    def __init__(self, database):
-        self.database = database
-
-    def get(self, resource_class, id_attribute, resource_id):
-        return self.database[resource_class.__name__][resource_id]
-
-    def save(self, resource):
-        self.database[resource.__class__.__name__][resource.identifier] = resource
-
-    def delete(self, resource):
-        del self.database[resource.__class__.__name__][resource.identifier]
 
 class Foo(object):
 
@@ -52,16 +41,14 @@ class FooEncoder(json.JSONEncoder):
         else:
             return json.JSONEncoder.default(self, object_)
 
-DATABASE = {
-    'Foo': {}
-}
-
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 app.json_encoder = FooEncoder
-socketio = SocketIO(app)
+socketio = SocketIO(app, json=json)
 
-socketapi = SocketAPI(socketio=socketio, store=Store(DATABASE))
+socketapi = SocketAPI(
+	socketio=socketio, store=SimpleStore([(Foo, 'identifier')]))
+
 socketapi.add_subscribable(Foo, 'identifier')
 
 @socketapi.patch_handler(Foo)

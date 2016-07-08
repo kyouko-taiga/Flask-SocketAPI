@@ -51,8 +51,7 @@ class SocketAPI(object):
             resource_class = self.subscribable[resource_name]['class']
 
             # Retreive the resource instance from the store.
-            id_attribute = self.subscribable[resource_name]['id_attribute']
-            resource = self.store.get(resource_class, id_attribute, resource_id)
+            resource = self.store.get(resource_class, resource_id)
             if resource is None:
                 raise NotFoundError(
                     'no %r resource identified by %r' % (resource_class.__name__, resource_id))
@@ -82,8 +81,7 @@ class SocketAPI(object):
             resource_class = self.subscribable[resource_name]['class']
 
             # Retreive the resource instance from the store.
-            id_attribute = self.subscribable[resource_name]['id_attribute']
-            resource = self.store.get(resource_class, id_attribute, resource_id)
+            resource = self.store.get(resource_class, resource_id)
             if resource is None:
                 raise NotFoundError(
                     'no %r resource identified by %r' % (resource_class.__name__, resource_id))
@@ -105,8 +103,7 @@ class SocketAPI(object):
             if resource_id:
                 # Check that the resource we're trying to subscribe to exists.
                 resource_class = self.subscribable[resource_name]['class']
-                id_attribute = self.subscribable[resource_name]['id_attribute']
-                resource = self.store.get(resource_class, id_attribute, resource_id)
+                resource = self.store.get(resource_class, resource_id)
                 if resource_id is None:
                     raise NotFoundError(
                         'no %r resource identified by %r' % (resource_class.__name__, resource_id))

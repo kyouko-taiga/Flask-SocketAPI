@@ -20,7 +20,7 @@ Example
 -------
 
 ```python
-from flask import Flask, render_template
+from flask import Flask, render_template, json
 from flask_socketio import SocketIO
 from flask_socketapi import SocketAPI, AbstractStore
 
@@ -44,18 +44,24 @@ class Foo(object):
         self.identifier = id(self)
         self.bar = bar
 
+class FooEncoder(json.JSONEncoder):
+
+    def default(self, object_):
+        if isinstance(object_, Foo):
+            return object_.__dict__
+        else:
+            return json.JSONEncoder.default(self, object_)
+
 DATABASE = {
     'Foo': {}
 }
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
+app.json_encoder = FooEncoder
 socketio = SocketIO(app)
 
-socketapi = SocketAPI(
-	socketio=socketio, store=Store(DATABASE),
-	dictionarizer=lambda x: x.__dict__)
-	
+socketapi = SocketAPI(socketio=socketio, store=Store(DATABASE))
 socketapi.add_subscribable(Foo, 'identifier')
 
 @socketapi.patch_handler(Foo)

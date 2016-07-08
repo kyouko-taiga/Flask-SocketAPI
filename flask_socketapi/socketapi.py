@@ -7,11 +7,10 @@ from .exc import InvalidRequestError, InvalidURIError, NotFoundError
 
 class SocketAPI(object):
 
-    def __init__(self, socketio=None, store=None, namespace=None, dictionarizer=None):
+    def __init__(self, socketio=None, store=None, namespace=None):
         self.subscribable = {}
         self.store = store
         self.namespace = namespace
-        self.dictionarizer = dictionarizer or dict
 
         if socketio is not None:
             self.init_socketio(socketio)
@@ -40,7 +39,7 @@ class SocketAPI(object):
             # Send the creation event to all subscribers of the resource list.
             self.socketio.emit('create', {
                 'uri': payload['uri'],
-                'resource': self.dictionarizer(resource)
+                'resource': resource
             }, room=payload['uri'])
 
         @socketio.on('patch')
@@ -115,7 +114,7 @@ class SocketAPI(object):
                 # Send a state event for the subscribed resource.
                 self.socketio.emit('state', {
                     'uri': uri,
-                    'resource': self.dictionarizer(resource)
+                    'resource': resource
                 })
 
             join_room(uri)

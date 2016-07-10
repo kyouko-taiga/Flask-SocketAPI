@@ -1,5 +1,9 @@
 from functools import wraps
 
+from werkzeug.exceptions import HTTPException
+from werkzeug.routing import Map, Rule
+
+from flask import request
 from flask_socketio import join_room, leave_room
 
 from .exc import InvalidRequestError, InvalidURIError, NotFoundError
@@ -7,10 +11,13 @@ from .exc import InvalidRequestError, InvalidURIError, NotFoundError
 
 class SocketAPI(object):
 
-    def __init__(self, socketio=None, store=None, namespace=None):
-        self.subscribable = {}
-        self.store = store
+    def __init__(self, socketio=None, namespace=None):
         self.namespace = namespace
+
+        self.routes = Map()
+        self.urls = self.routes.bind('/', '/')
+
+        self.patch_handlers = {}
 
         if socketio is not None:
             self.init_socketio(socketio)
@@ -20,150 +27,179 @@ class SocketAPI(object):
 
         @socketio.on('create', namespace=self.namespace)
         def handle_create(payload):
-            # Retreive the resource class.
+            # Retreive request arguments.
             if 'uri' not in payload:
                 raise InvalidRequestError('missing URI')
-            (resource_name, resource_id) = self._parse_uri(payload['uri'])
-            resource_class = self.subscribable[resource_name]['class']
+            uri = payload['uri']
+            attributes = payload.get('attributes', {})
 
-            if resource_id:
-                raise InvalidURIError("'%s' is not a list" % payload['uri'])
+            # Search for a matching route.
+            try:
+                creator, kwargs = self.urls.match(uri, method='POST')
+            except HTTPException:
+                # No registered resource creator for this uri.
+                raise InvalidRequestError("no registered resource creator for %s'" % uri)
 
             # Create the new resource instance.
-            attributes = payload.get('attributes', {})
-            resource = resource_class(**attributes)
+            kwargs.update(attributes)
+            resource = creator(**kwargs)
 
-            # Save the bew resource instance to the store.
-            self.store.save(resource)
-
-            # Send the creation event to all subscribers of the resource list.
+            # Send the creation event to all subscribers of the uri.
             self.socketio.emit('create', {
-                'uri': payload['uri'],
+                'uri': uri,
                 'resource': resource
-            }, room=payload['uri'])
+            }, room=uri)
 
         @socketio.on('patch')
         def handle_patch(payload, namespace=self.namespace):
-            # Retreive the resource class.
+            # Retreive request arguments.
             if 'uri' not in payload:
                 raise InvalidRequestError('missing URI')
-            (resource_name, resource_id) = self._parse_uri(payload['uri'])
-            resource_class = self.subscribable[resource_name]['class']
-
-            # Retreive the resource instance from the store.
-            resource = self.store.get(resource_class, resource_id)
-            if resource is None:
-                raise NotFoundError(
-                    'no %r resource identified by %r' % (resource_class.__name__, resource_id))
-
-            # Call the resource patchers.
+            uri = payload['uri']
             patch = payload.get('patch', {})
-            for patcher in self.subscribable[resource_name]['patchers']:
-                patcher(resource, patch)
 
-            # Save the resource instance to the store.
-            self.store.save(resource)
+            # Search for a matching route.
+            try:
+                rule, kwargs = self.urls.match(uri, return_rule=True, method='PATCH')
+                kwargs['patch'] = patch
+            except HTTPException:
+                # No registered resource patcher for this uri.
+                raise InvalidRequestError("no registered resource patcher for %s'" % uri)
 
-            # Send the patch event to all subscribers of the resource, and the
-            # resource list.
-            for room_name in (resource_name + '/' + resource_id, resource_name + '/'):
+            # Call all the resource patchers for the given uri.
+            for patch_handler in self.patch_handlers[rule.rule]:
+                patch_handler(**kwargs)
+
+            # Try to retrieve the resource once patched, so that we can send
+            # the attribute values, as they were patched.
+            try:
+                getter, kwargs = self.urls.match(uri, method='GET')
+                resource = getter(**kwargs)
+                patch = {attribute: getattr(resource, attribute) for attribute in patch}
+            except HTTPException:
+                pass
+
+            # Send the patch event to all subscribers of the resource, and of
+            # the resource list.
+            for room_name in (uri, uri[0:len(uri) - len(uri.split('/')[-1])]):
                 self.socketio.emit('patch', {
-                    'uri': payload['uri'],
-                    'patch': {attribute: getattr(resource, attribute) for attribute in patch}
+                    'uri': uri,
+                    'patch': patch
                 }, room=room_name)
 
         @socketio.on('delete', namespace=self.namespace)
         def handle_delete(payload):
-            # Retreive the resource class.
+            # Retreive request arguments.
             if 'uri' not in payload:
                 raise InvalidRequestError('missing URI')
-            (resource_name, resource_id) = self._parse_uri(payload['uri'])
-            resource_class = self.subscribable[resource_name]['class']
+            uri = payload['uri']
 
-            # Retreive the resource instance from the store.
-            resource = self.store.get(resource_class, resource_id)
-            if resource is None:
-                raise NotFoundError(
-                    'no %r resource identified by %r' % (resource_class.__name__, resource_id))
+            # Search for a matching route.
+            try:
+                deleter, kwargs = self.urls.match(uri, method='POST')
+            except HTTPException:
+                # No registered resource deleter for this uri.
+                raise InvalidRequestError("no registered resource deleter for %s'" % uri)
 
-            # Delete the resource instance from the store.
-            self.store.delete(resource)
+            # Delete the resource.
+            resource = deleter(**kwargs)
 
             # Send the deletion event to all subscribers of the resource, and
-            # the resource list.
-            for room_name in (resource_name + '/' + resource_id, resource_name + '/'):
-                self.socketio.emit('delete', {
-                    'uri': payload['uri']
+            # of the resource list.
+            for room_name in (uri, uri[0:len(uri) - len(uri.split('/')[-1])]):
+                self.socketio.emit('patch', {
+                    'uri': uri
                 }, room=room_name)
 
         @socketio.on('subscribe', namespace=self.namespace)
         def handle_subscribe(uri):
-            (resource_name, resource_id) = self._parse_uri(uri)
-            resource_class = self.subscribable[resource_name]['class']
+            # Try to retrieve the subscribed resource, so that we can send its
+            # current state to the subscriber.
+            try:
+                getter, kwargs = self.urls.match(uri, method='GET')
+                resource = getter(**kwargs)
+            except HTTPException:
+                resource = None
 
-            if resource_id:
-                # Check that the resource we're trying to subscribe to exists.
-                resource = self.store.get(resource_class, resource_id)
-                if resource_id is None:
-                    raise NotFoundError(
-                        'no %r resource identified by %r' % (resource_class.__name__, resource_id))
-
-                # Send a state event for the subscribed resource.
+            if resource is not None:
                 self.socketio.emit('state', {
                     'uri': uri,
                     'resource': resource
-                })
-            else:
-                resources = self.store.list(resource_class)
-                self.socketio.emit('state', {
-                    'uri': uri,
-                    'resources': resources
-                })
+                }, room=request.sid)
 
             join_room(uri)
 
         @socketio.on('unsubscribe', namespace=self.namespace)
         def handle_subscribe(uri):
-            (resource_name, resource_id) = self._parse_uri(uri)
             leave_room(uri)
 
-    def add_subscribable(self, resource_class, id_attribute):
-        resource_name = resource_class.__name__.lower()
-        self.subscribable[resource_name] = {
-            'class': resource_class,
-            'id_attribute': id_attribute,
-            'patchers': []
-        }
-
-    def patch_handler(self, resource_class):
-        resource_name = resource_class.__name__.lower()
-        if resource_name not in self.subscribable:
-            raise ValueError('undefined subscribable class %r' % resource_class.__name__)
+    def resource_creator(self, rule):
+        # Make sure the given rule corresponds to a list uri.
+        if not rule.endswith('/'):
+            raise InvalidURIError('resource creators should be registered on list uri')
 
         def decorate(fn):
             @wraps(fn)
             def decorated(*args, **kwargs):
                 return fn(*args, **kwargs)
 
-            self.subscribable[resource_name]['patchers'].append(decorated)
+            # Register a new POST route for the given rule.
+            self.routes.add(Rule(rule, endpoint=decorated, methods=['POST']))
 
             return decorated
         return decorate
 
-    def _parse_uri(self, uri):
-        try:
-            # If the uri identifies a single resource, it will have the form
-            # `resource_name/resource_id`. If it identifies a resource list, it
-            # have the form `resource_name/`. In the former case, `resource_id`
-            # will be filled with the resource identifier, while in the latter it
-            # will get the empty string.
-            (resource_name, resource_id) = uri.split('/')
-        except ValueError:
-            # The given uri is necessary invalid if `str.split` raises an error.
-            raise InvalidURIError
+    def resource_getter(self, rule):
+        def decorate(fn):
+            @wraps(fn)
+            def decorated(*args, **kwargs):
+                return fn(*args, **kwargs)
 
-        resource_name = resource_name.lower()
-        if resource_name not in self.subscribable:
-            raise InvalidURIError
+            # Register a new GET route for the given rule.
+            self.routes.add(Rule(rule, endpoint=decorated, methods=['GET']))
 
-        return (resource_name, resource_id)
+            return decorated
+        return decorate
+
+    def resource_patcher(self, rule):
+        # Make sure the rule doesn't correspond to a list.
+        if rule.endswith('/'):
+            raise InvalidURIError('cannot register resource patchers on a list uri')
+
+        def decorate(fn):
+            @wraps(fn)
+            def decorated(*args, **kwargs):
+                return fn(*args, **kwargs)
+
+            # Check if there already is a route to catch patch requests on the
+            # given rule.
+            for route in self.routes.iter_rules():
+                if (route.rule == rule) and ('PATCH' in route.methods):
+                    break
+            else:
+                # Register a new PATCH route for the given rule.
+                self.routes.add(Rule(rule, methods=['PATCH']))
+
+            # Register the given patch handler.
+            if rule not in self.patch_handlers:
+                self.patch_handlers[rule] = []
+            self.patch_handlers[rule].append(decorated)
+
+            return decorated
+        return decorate
+
+    def resource_deleter(self, rule):
+        # Make sure the rule doesn't correspond to a list.
+        if rule.endswith('/'):
+            raise InvalidURIError('cannot register resource deleters on a list uri')
+
+        def decorate(fn):
+            @wraps(fn)
+            def decorated(*args, **kwargs):
+                return fn(*args, **kwargs)
+
+            # Register a new DELETE route for the given rule.
+            self.routes.add(Rule(rule, endpoint=decorated, methods=['DELETE']))
+
+            return decorated
+        return decorate

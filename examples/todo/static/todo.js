@@ -54,8 +54,8 @@ socket.on('connect', function() {
     });
 
     socket.on('state', function(payload) {
-        for (var i = 0; i < payload.resources.length; ++i) {
-            create_todo(payload.resources[i]);
+        for (var i = 0; i < payload.resource.length; ++i) {
+            create_todo(payload.resource[i]);
         }
     });
 

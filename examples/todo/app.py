@@ -2,7 +2,6 @@ from flask import Flask, render_template, json
 
 from flask_socketio import SocketIO
 from flask_socketapi import SocketAPI
-from flask_socketapi.stores import SimpleStore
 
 from todo import Todo, TodoEncoder
 
@@ -16,16 +15,37 @@ app.json_encoder = TodoEncoder
 socketio = SocketIO(app, json=json)
 
 # Create the SocketAPI object.
-socketapi = SocketAPI(socketio=socketio, store=SimpleStore([(Todo, 'id')]))
+socketapi = SocketAPI(socketio=socketio)
 
-# Register the subscribable resource.
-socketapi.add_subscribable(Todo, 'id')
+# Create a in-memory store for the todo items.
+todos = {}
 
 
-@socketapi.patch_handler(Todo)
-def handle_patch_todo(object_, patch):
+@socketapi.resource_creator('/todo/')
+def create_todo(**kwargs):
+    global todos
+    todo = Todo(**kwargs)
+    todos[todo.id] = todo
+    return todo
+
+
+@socketapi.resource_getter('/todo/')
+def get_todo_list():
+    global todos
+    return list(todos.values())
+
+
+@socketapi.resource_getter('/todo/<id_>')
+def get_todo(id_):
+    global todos
+    return todos.get(id_)
+
+
+@socketapi.resource_patcher('/todo/<id_>')
+def patch_todo(id_, patch):
+    global todos
     for attribute, value in patch.items():
-        setattr(object_, attribute, value)
+        setattr(todos[id_], attribute, value)
 
 
 @app.route('/')

@@ -9,7 +9,7 @@ from setuptools import setup
 
 setup(
     name='Flask-SocketAPI',
-    version='0.1',
+    version='0.2',
     url='https://github.com/kyouko-taiga/Flask-SocketAPI',
     license='MIT',
     author='Dimitri Racordon',

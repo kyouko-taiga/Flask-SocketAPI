@@ -146,7 +146,7 @@ Those routes are identical to those of Flask.
 
 	```python
 	@delete_todo('/todo/<id_>')
-	def delete_todo(id_, patch):
+	def delete_todo(id_):
 		todo = Todo.query.filter(Todo.id_ == id_)
 		todo.delete()
 	```

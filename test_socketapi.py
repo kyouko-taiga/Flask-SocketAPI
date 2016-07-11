@@ -19,14 +19,23 @@ socketapi = SocketAPI(socketio=socketio)
 apples = {}
 
 
+@socketapi.subscription_handler('/apples/<int:key>')
+def reject_keys_if_42(key):
+    if key == 42:
+        raise InvalidURIError('apple key cannot be 42')
+
+
+@socketapi.subscription_handler('/apples/<int:key>')
+def reject_keys_if_43(key):
+    if key == 43:
+        raise InvalidURIError('apple key cannot be 43')
+
+
 @socketapi.resource_creator('/apples/')
 def create_apple(foo, bar=None):
     global apples
     key = max(apples.keys()) + 1 if apples else 0
-    apples[key] = {
-        'foo': foo,
-        'bar': bar
-    }
+    apples[key] = {'foo': foo, 'bar': bar}
     return apples[key]
 
 
@@ -114,6 +123,20 @@ class TestSocketAPI(unittest.TestCase):
         self.assertEqual({'foo': 0, 'bar': 'koala'}, received[0]['args'][0]['resource'])
 
         apples.clear()
+
+    def test_subscription_handling(self):
+        client = socketio.test_client(app)
+        client.emit('subscribe', '/apples/42')
+        received = client.get_received()
+
+        self.assertEqual(received[0]['name'], 'api_error')
+        self.assertEqual(received[0]['args'][0]['error'], 'InvalidURIError')
+
+        client.emit('subscribe', '/apples/43')
+        received = client.get_received()
+
+        self.assertEqual(received[0]['name'], 'api_error')
+        self.assertEqual(received[0]['args'][0]['error'], 'InvalidURIError')
 
     def test_create(self):
         global apples

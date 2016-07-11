@@ -17,6 +17,7 @@ class SocketAPI(object):
         self.routes = Map()
         self.urls = self.routes.bind('/', '/')
 
+        self.subscription_handlers = {}
         self.patch_handlers = {}
 
         if socketio is not None:
@@ -66,7 +67,7 @@ class SocketAPI(object):
                 # No registered resource patcher for this uri.
                 raise InvalidRequestError("no registered resource patcher for %s'" % uri)
 
-            # Call all the resource patchers for the given uri.
+            # Call the resource patchers for the given uri.
             for patch_handler in self.patch_handlers[rule.rule]:
                 patch_handler(**kwargs)
 
@@ -104,6 +105,18 @@ class SocketAPI(object):
 
         @socketio.on('subscribe', namespace=self.namespace)
         def handle_subscribe(uri):
+            # Call the subscription handlers for the given uri.
+            try:
+                rule, kwargs = self.urls.match(uri, return_rule=True, method='SUBSCRIBE')
+            except HTTPException:
+                rule = None
+
+            if rule is not None:
+                for subscription_handler in self.subscription_handlers[rule.rule]:
+                    subscription_handler(**kwargs)
+
+            join_room(uri)
+
             # Try to retrieve the subscribed resource, so that we can send its
             # current state to the subscriber.
             try:
@@ -117,8 +130,6 @@ class SocketAPI(object):
                     'uri': uri,
                     'resource': resource
                 }, room=request.sid)
-
-            join_room(uri)
 
         @socketio.on('unsubscribe', namespace=self.namespace)
         def handle_unsubscribe(uri):
@@ -142,6 +153,29 @@ class SocketAPI(object):
 
             # Log the error.
             current_app.logger.exception(e)
+
+    def subscription_handler(self, rule):
+        def decorate(fn):
+            @wraps(fn)
+            def decorated(*args, **kwargs):
+                return fn(*args, **kwargs)
+
+            # Check if there already is a route to catch subscription requests
+            # on the given rule.
+            for route in self.routes.iter_rules():
+                if (route.rule == rule) and ('SUBSCRIBE' in route.methods):
+                    break
+            else:
+                # Register a new SUBSCRIBE route for the given rule.
+                self.routes.add(Rule(rule, methods=['SUBSCRIBE']))
+
+            # Register the given subscription handler.
+            if rule not in self.subscription_handlers:
+                self.subscription_handlers[rule] = []
+            self.subscription_handlers[rule].append(decorated)
+
+            return decorated
+        return decorate
 
     def resource_creator(self, rule):
         # Make sure the given rule corresponds to a list uri.

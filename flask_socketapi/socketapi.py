@@ -47,10 +47,7 @@ class SocketAPI(object):
             resource = creator(**kwargs)
 
             # Send the creation event to all subscribers of the uri.
-            self.socketio.emit('create', {
-                'uri': uri,
-                'resource': resource
-            }, room=uri)
+            self.emit_create(uri, resource)
 
         @socketio.on('patch')
         def handle_patch(payload, namespace=self.namespace):
@@ -74,11 +71,7 @@ class SocketAPI(object):
 
             # Send the patch event to all subscribers of the resource, and of
             # the resource list.
-            for room_name in (uri, uri[0:len(uri) - len(uri.split('/')[-1])]):
-                self.socketio.emit('patch', {
-                    'uri': uri,
-                    'patch': patch
-                }, room=room_name)
+            self.emit_patch(uri, patch)
 
         @socketio.on('delete', namespace=self.namespace)
         def handle_delete(payload):
@@ -99,10 +92,7 @@ class SocketAPI(object):
 
             # Send the deletion event to all subscribers of the resource, and
             # of the resource list.
-            for room_name in (uri, uri[0:len(uri) - len(uri.split('/')[-1])]):
-                self.socketio.emit('delete', {
-                    'uri': uri
-                }, room=room_name)
+            self.emit_delete(uri)
 
         @socketio.on('subscribe', namespace=self.namespace)
         def handle_subscribe(uri):
@@ -127,10 +117,7 @@ class SocketAPI(object):
                 resource = None
 
             if resource is not None:
-                self.socketio.emit('state', {
-                    'uri': uri,
-                    'resource': resource
-                }, room=request.sid)
+                self.emit_state(uri, resource)
 
         @socketio.on('unsubscribe', namespace=self.namespace)
         def handle_unsubscribe(uri):
@@ -150,20 +137,51 @@ class SocketAPI(object):
         def handle_error(e):
             if isinstance(e, InvalidRequestError):
                 # Instances of InvalidRequestError are forwarded to the client.
-                self.socketio.emit('api_error', {
-                    'error':  e.__class__.__name__,
-                    'message': str(e)
-                }, room=request.sid)
+                self.emit_api_error(e)
             else:
                 # Other errors are considered server errors and should not be
                 # forwarded to the client, except in debug mode.
-                self.socketio.emit('server_error', {
-                    'error':  e.__class__.__name__,
-                    'message': str(e) if current_app.debug else None
-                }, room=request.sid)
+                self.emit_server_error(e)
 
                 # Re-raise the server error.
                 raise e
+
+    def emit_create(self, uri, resource):
+        self.socketio.emit('create', {
+            'uri': uri,
+            'resource': resource
+        }, room=uri)
+
+    def emit_state(self, uri, resource):
+        self.socketio.emit('state', {
+            'uri': uri,
+            'resource': resource
+        }, room=request.sid)
+
+    def emit_patch(self, uri, patch):
+        for room_name in (uri, uri[0:len(uri) - len(uri.split('/')[-1])]):
+            self.socketio.emit('patch', {
+                'uri': uri,
+                'patch': patch
+            }, room=room_name)
+
+    def emit_delete(self, uri):
+        for room_name in (uri, uri[0:len(uri) - len(uri.split('/')[-1])]):
+            self.socketio.emit('delete', {
+                'uri': uri
+            }, room=room_name)
+
+    def emit_api_error(self, error):
+        self.socketio.emit('api_error', {
+            'error':  error.__class__.__name__,
+            'message': str(error)
+        }, room=request.sid)
+
+    def emit_server_error(self, error):
+        self.socketio.emit('server_error', {
+            'error':  error.__class__.__name__,
+            'message': str(error) if current_app.debug else None
+        }, room=request.sid)
 
     def subscription_handler(self, rule):
         def decorate(fn):

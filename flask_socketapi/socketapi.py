@@ -130,7 +130,7 @@ class SocketAPI(object):
             join_room(uri)
 
         @socketio.on('unsubscribe', namespace=self.namespace)
-        def handle_subscribe(uri):
+        def handle_unsubscribe(uri):
             leave_room(uri)
 
         @socketio.on_error(self.namespace)

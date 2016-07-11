@@ -78,4 +78,12 @@ socket.on('connect', function() {
         var todo = $('#todo' + payload.uri.split('/')[1])
         todo.remove();
     });
+
+    socket.on('api_error', function(payload) {
+        console.error(payload)
+    });
+
+    socket.on('server_error', function(payload) {
+        console.error(payload)
+    });
 });

@@ -3,10 +3,10 @@ from functools import wraps
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import Map, Rule
 
-from flask import request
+from flask import current_app, request
 from flask_socketio import join_room, leave_room
 
-from .exc import InvalidRequestError, InvalidURIError, NotFoundError
+from .exc import InvalidRequestError, InvalidURIError, NotFoundError, SocketAPIError
 
 
 class SocketAPI(object):
@@ -132,6 +132,25 @@ class SocketAPI(object):
         @socketio.on('unsubscribe', namespace=self.namespace)
         def handle_subscribe(uri):
             leave_room(uri)
+
+        @socketio.on_error(self.namespace)
+        def handle_error(e):
+            if isinstance(e, SocketAPIError):
+                # Instances of SocketAPIError are forwarded to the client.
+                self.socketio.emit('api_error', {
+                    'error':  e.__class__.__name__,
+                    'message': str(e)
+                }, room=request.sid)
+            else:
+                # Other errors are considered server errors and should not be
+                # forwarded to the client, except in debug mode.
+                self.socketio.emit('server_error', {
+                    'error':  e.__class__.__name__,
+                    'message': str(e) if current_app.debug else None
+                }, room=request.sid)
+
+            # Log the error.
+            current_app.logger.exception(e)
 
     def resource_creator(self, rule):
         # Make sure the given rule corresponds to a list uri.

@@ -1,6 +1,8 @@
 Flask-SocketAPI
 ===============
 
+[![Build Status](https://travis-ci.org/kyouko-taiga/Flask-SocketAPI.svg?branch=master)](https://travis-ci.org/kyouko-taiga/Flask-SocketAPI)
+
 Lightweight library to create streaming APIs over Flask-SocketIO.
 
 Installation

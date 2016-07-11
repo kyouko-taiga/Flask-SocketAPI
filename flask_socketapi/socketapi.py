@@ -70,15 +70,6 @@ class SocketAPI(object):
             for patch_handler in self.patch_handlers[rule.rule]:
                 patch_handler(**kwargs)
 
-            # Try to retrieve the resource once patched, so that we can send
-            # the attribute values, as they were patched.
-            try:
-                getter, kwargs = self.urls.match(uri, method='GET')
-                resource = getter(**kwargs)
-                patch = {attribute: getattr(resource, attribute) for attribute in patch}
-            except HTTPException:
-                pass
-
             # Send the patch event to all subscribers of the resource, and of
             # the resource list.
             for room_name in (uri, uri[0:len(uri) - len(uri.split('/')[-1])]):

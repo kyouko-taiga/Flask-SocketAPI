@@ -2,11 +2,11 @@ class SocketAPIError(Exception):
     pass
 
 
-class InvalidRequestError(SocketAPIError):
+class InvalidRouteError(SocketAPIError):
     pass
 
 
-class InvalidURIError(InvalidRequestError):
+class InvalidRequestError(SocketAPIError):
     pass
 
 

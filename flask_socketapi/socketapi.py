@@ -6,7 +6,7 @@ from werkzeug.routing import Map, Rule
 from flask import current_app, request
 from flask_socketio import join_room, leave_room
 
-from .exc import InvalidRequestError, InvalidURIError, SocketAPIError
+from .exc import InvalidRequestError, InvalidRouteError
 
 
 class SocketAPI(object):
@@ -148,8 +148,8 @@ class SocketAPI(object):
 
         @socketio.on_error(self.namespace)
         def handle_error(e):
-            if isinstance(e, SocketAPIError):
-                # Instances of SocketAPIError are forwarded to the client.
+            if isinstance(e, InvalidRequestError):
+                # Instances of InvalidRequestError are forwarded to the client.
                 self.socketio.emit('api_error', {
                     'error':  e.__class__.__name__,
                     'message': str(e)
@@ -214,7 +214,7 @@ class SocketAPI(object):
     def resource_creator(self, rule):
         # Make sure the given rule corresponds to a list uri.
         if not rule.endswith('/'):
-            raise InvalidURIError('resource creators should be registered on list uri')
+            raise InvalidRouteError('resource creators should be registered on list uri')
 
         def decorate(fn):
             @wraps(fn)
@@ -242,7 +242,7 @@ class SocketAPI(object):
     def resource_patcher(self, rule):
         # Make sure the rule doesn't correspond to a list.
         if rule.endswith('/'):
-            raise InvalidURIError('cannot register resource patchers on a list uri')
+            raise InvalidRouteError('cannot register resource patchers on a list uri')
 
         def decorate(fn):
             @wraps(fn)
@@ -269,7 +269,7 @@ class SocketAPI(object):
     def resource_deleter(self, rule):
         # Make sure the rule doesn't correspond to a list.
         if rule.endswith('/'):
-            raise InvalidURIError('cannot register resource deleters on a list uri')
+            raise InvalidRouteError('cannot register resource deleters on a list uri')
 
         def decorate(fn):
             @wraps(fn)

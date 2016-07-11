@@ -7,7 +7,7 @@ cov.start()
 from flask import Flask
 from flask_socketio import SocketIO, rooms
 from flask_socketapi import SocketAPI
-from flask_socketapi.exc import InvalidURIError
+from flask_socketapi.exc import InvalidRouteError, InvalidRequestError
 
 
 app = Flask(__name__)
@@ -60,25 +60,25 @@ def delete_apple(key):
 @socketapi.subscription_handler('/apples/<int:key>')
 def raise_if_42(key):
     if key == 42:
-        raise InvalidURIError('apple key cannot be 42')
+        raise InvalidRequestError('apple key cannot be 42')
 
 
 @socketapi.subscription_handler('/apples/<int:key>')
 def raise_if_43(key):
     if key == 43:
-        raise InvalidURIError('apple key cannot be 43')
+        raise InvalidRequestError('apple key cannot be 43')
 
 
 @socketapi.unsubscription_handler('/apples/<int:key>')
 def raise_if_44(key):
     if key == 44:
-        raise InvalidURIError('cannot unsubscribe from apple 44')
+        raise InvalidRequestError('cannot unsubscribe from apple 44')
 
 
 @socketapi.unsubscription_handler('/apples/<int:key>')
 def raise_if_45(key):
     if key == 45:
-        raise InvalidURIError('cannot unsubscribe from apple 45')
+        raise InvalidRequestError('cannot unsubscribe from apple 45')
 
 
 class TestSocketAPI(unittest.TestCase):
@@ -142,13 +142,13 @@ class TestSocketAPI(unittest.TestCase):
         received = client.get_received()
 
         self.assertEqual(received[0]['name'], 'api_error')
-        self.assertEqual(received[0]['args'][0]['error'], 'InvalidURIError')
+        self.assertEqual(received[0]['args'][0]['error'], 'InvalidRequestError')
 
         client.emit('subscribe', '/apples/43')
         received = client.get_received()
 
         self.assertEqual(received[0]['name'], 'api_error')
-        self.assertEqual(received[0]['args'][0]['error'], 'InvalidURIError')
+        self.assertEqual(received[0]['args'][0]['error'], 'InvalidRequestError')
 
     def test_unsubscription_handling(self):
         client = socketio.test_client(app)
@@ -156,13 +156,13 @@ class TestSocketAPI(unittest.TestCase):
         received = client.get_received()
 
         self.assertEqual(received[0]['name'], 'api_error')
-        self.assertEqual(received[0]['args'][0]['error'], 'InvalidURIError')
+        self.assertEqual(received[0]['args'][0]['error'], 'InvalidRequestError')
 
         client.emit('unsubscribe', '/apples/45')
         received = client.get_received()
 
         self.assertEqual(received[0]['name'], 'api_error')
-        self.assertEqual(received[0]['args'][0]['error'], 'InvalidURIError')
+        self.assertEqual(received[0]['args'][0]['error'], 'InvalidRequestError')
 
     def test_create(self):
         global apples
@@ -343,7 +343,7 @@ class TestSocketAPI(unittest.TestCase):
             def invalid_resource_creator():
                 pass
         except Exception as e:
-            self.assertIsInstance(e, InvalidURIError)
+            self.assertIsInstance(e, InvalidRouteError)
 
     def test_invalid_resource_patcher(self):
         try:
@@ -351,7 +351,7 @@ class TestSocketAPI(unittest.TestCase):
             def invalid_resource_patcher():
                 pass
         except Exception as e:
-            self.assertIsInstance(e, InvalidURIError)
+            self.assertIsInstance(e, InvalidRouteError)
 
     def test_invalid_resource_deleter(self):
         try:
@@ -359,7 +359,7 @@ class TestSocketAPI(unittest.TestCase):
             def invalid_resource_deleter():
                 pass
         except Exception as e:
-            self.assertIsInstance(e, InvalidURIError)
+            self.assertIsInstance(e, InvalidRouteError)
 
 
 if __name__ == '__main__':

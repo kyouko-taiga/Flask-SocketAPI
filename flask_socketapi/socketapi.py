@@ -6,7 +6,7 @@ from werkzeug.routing import Map, Rule
 from flask import current_app, request
 from flask_socketio import join_room, leave_room
 
-from .exc import InvalidRequestError, InvalidURIError, NotFoundError, SocketAPIError
+from .exc import InvalidRequestError, InvalidURIError, SocketAPIError
 
 
 class SocketAPI(object):

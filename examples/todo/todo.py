@@ -9,6 +9,7 @@ class Todo(object):
         self.text = text
         self.completed = completed
 
+
 class TodoEncoder(JSONEncoder):
 
     def default(self, object_):

@@ -87,7 +87,7 @@ class SocketAPI(object):
 
             # Search for a matching route.
             try:
-                deleter, kwargs = self.urls.match(uri, method='POST')
+                deleter, kwargs = self.urls.match(uri, method='DELETE')
             except HTTPException:
                 # No registered resource deleter for this uri.
                 raise InvalidRequestError("no registered resource deleter for %s'" % uri)
@@ -98,7 +98,7 @@ class SocketAPI(object):
             # Send the deletion event to all subscribers of the resource, and
             # of the resource list.
             for room_name in (uri, uri[0:len(uri) - len(uri.split('/')[-1])]):
-                self.socketio.emit('patch', {
+                self.socketio.emit('delete', {
                     'uri': uri
                 }, room=room_name)
 

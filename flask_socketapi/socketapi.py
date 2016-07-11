@@ -162,8 +162,8 @@ class SocketAPI(object):
                     'message': str(e) if current_app.debug else None
                 }, room=request.sid)
 
-            # Log the error.
-            current_app.logger.exception(e)
+                # Re-raise the server error.
+                raise e
 
     def subscription_handler(self, rule):
         def decorate(fn):

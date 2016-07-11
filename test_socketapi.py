@@ -326,10 +326,12 @@ class TestSocketAPI(unittest.TestCase):
 
     def test_server_error(self):
         client = socketio.test_client(app)
-        client.emit('patch', {
-            'uri': '/apples/0',
-            'patch': {'foo': 2, 'bar': 'crane'}
-        })
+
+        with self.assertRaises(KeyError):
+            client.emit('patch', {
+                'uri': '/apples/0',
+                'patch': {'foo': 2, 'bar': 'crane'}
+            })
         received = client.get_received()
 
         self.assertEqual(received[0]['name'], 'server_error')

@@ -1,7 +1,7 @@
 """
 Flask-SocketAPI
 --------------
-Lightweight library to create streaming API over Flask-SocketIO.
+Lightweight library to create streaming APIs over Flask-SocketIO.
 """
 
 from setuptools import setup
@@ -14,7 +14,7 @@ setup(
     license='MIT',
     author='Dimitri Racordon',
     author_email = "kyouko.taiga@gmail.com",
-    description='Lightweight library to create streaming API over Flask-SocketIO',
+    description='Lightweight library to create streaming APIs over Flask-SocketIO',
     long_description=__doc__,
     packages=['flask_socketapi'],
     zip_safe=False,

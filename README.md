@@ -1,7 +1,7 @@
 Flask-SocketAPI
 ===============
 
-Lightweight library to create streaming API over Flask-SocketIO.
+Lightweight library to create streaming APIs over Flask-SocketIO.
 
 Installation
 ------------

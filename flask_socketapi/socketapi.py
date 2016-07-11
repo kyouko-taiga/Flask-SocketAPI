@@ -18,6 +18,7 @@ class SocketAPI(object):
         self.urls = self.routes.bind('/', '/')
 
         self.subscription_handlers = {}
+        self.unsubscription_handlers = {}
         self.patch_handlers = {}
 
         if socketio is not None:
@@ -133,6 +134,16 @@ class SocketAPI(object):
 
         @socketio.on('unsubscribe', namespace=self.namespace)
         def handle_unsubscribe(uri):
+            # Call the unsubscription handlers for the given uri.
+            try:
+                rule, kwargs = self.urls.match(uri, return_rule=True, method='UNSUBSCRIBE')
+            except HTTPException:
+                rule = None
+
+            if rule is not None:
+                for unsubscription_handler in self.unsubscription_handlers[rule.rule]:
+                    unsubscription_handler(**kwargs)
+
             leave_room(uri)
 
         @socketio.on_error(self.namespace)
@@ -173,6 +184,29 @@ class SocketAPI(object):
             if rule not in self.subscription_handlers:
                 self.subscription_handlers[rule] = []
             self.subscription_handlers[rule].append(decorated)
+
+            return decorated
+        return decorate
+
+    def unsubscription_handler(self, rule):
+        def decorate(fn):
+            @wraps(fn)
+            def decorated(*args, **kwargs):
+                return fn(*args, **kwargs)
+
+            # Check if there already is a route to catch unsubscription
+            # requests on the given rule.
+            for route in self.routes.iter_rules():
+                if (route.rule == rule) and ('UNSUBSCRIBE' in route.methods):
+                    break
+            else:
+                # Register a new UNSUBSCRIBE route for the given rule.
+                self.routes.add(Rule(rule, methods=['UNSUBSCRIBE']))
+
+            # Register the given unsubscription handler.
+            if rule not in self.unsubscription_handlers:
+                self.unsubscription_handlers[rule] = []
+            self.unsubscription_handlers[rule].append(decorated)
 
             return decorated
         return decorate

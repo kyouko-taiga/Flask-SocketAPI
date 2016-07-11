@@ -19,18 +19,6 @@ socketapi = SocketAPI(socketio=socketio)
 apples = {}
 
 
-@socketapi.subscription_handler('/apples/<int:key>')
-def reject_keys_if_42(key):
-    if key == 42:
-        raise InvalidURIError('apple key cannot be 42')
-
-
-@socketapi.subscription_handler('/apples/<int:key>')
-def reject_keys_if_43(key):
-    if key == 43:
-        raise InvalidURIError('apple key cannot be 43')
-
-
 @socketapi.resource_creator('/apples/')
 def create_apple(foo, bar=None):
     global apples
@@ -67,6 +55,30 @@ def patch_apple_bar(key, patch):
 def delete_apple(key):
     global apples
     del apples[key]
+
+
+@socketapi.subscription_handler('/apples/<int:key>')
+def raise_if_42(key):
+    if key == 42:
+        raise InvalidURIError('apple key cannot be 42')
+
+
+@socketapi.subscription_handler('/apples/<int:key>')
+def raise_if_43(key):
+    if key == 43:
+        raise InvalidURIError('apple key cannot be 43')
+
+
+@socketapi.unsubscription_handler('/apples/<int:key>')
+def raise_if_44(key):
+    if key == 44:
+        raise InvalidURIError('cannot unsubscribe from apple 44')
+
+
+@socketapi.unsubscription_handler('/apples/<int:key>')
+def raise_if_45(key):
+    if key == 45:
+        raise InvalidURIError('cannot unsubscribe from apple 45')
 
 
 class TestSocketAPI(unittest.TestCase):
@@ -133,6 +145,20 @@ class TestSocketAPI(unittest.TestCase):
         self.assertEqual(received[0]['args'][0]['error'], 'InvalidURIError')
 
         client.emit('subscribe', '/apples/43')
+        received = client.get_received()
+
+        self.assertEqual(received[0]['name'], 'api_error')
+        self.assertEqual(received[0]['args'][0]['error'], 'InvalidURIError')
+
+    def test_unsubscription_handling(self):
+        client = socketio.test_client(app)
+        client.emit('unsubscribe', '/apples/44')
+        received = client.get_received()
+
+        self.assertEqual(received[0]['name'], 'api_error')
+        self.assertEqual(received[0]['args'][0]['error'], 'InvalidURIError')
+
+        client.emit('unsubscribe', '/apples/45')
         received = client.get_received()
 
         self.assertEqual(received[0]['name'], 'api_error')

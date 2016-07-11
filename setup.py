@@ -23,6 +23,10 @@ setup(
     install_requires=[
         'flask-socketio>=2.5'
     ],
+    tests_require=[
+        'coverage'
+    ],
+    test_suite='test_socketapi',
     classifiers=[
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
